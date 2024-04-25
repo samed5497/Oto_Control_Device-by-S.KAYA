@@ -5,7 +5,6 @@
 #define SURUM "v1.0"
 #define DEVELOPER "github.com/samed5497"
 
-
 /* KALİBRE EDİLEBİLİR DEĞİŞKEN TANIMLAMALARI */
 
 int role_tetik_suresi = 500;
@@ -14,8 +13,8 @@ int acilisdakika = 30;
 int kapanissat = 22;
 // + SAAT ÇEKİRDEK YAZILIMI
 
-/* PİN TANIMLAMALARI */
 
+/* PİN TANIMLAMALARI */
 #define led 13
 #define buton 12
 #define sarj 7
@@ -24,7 +23,7 @@ int kapanissat = 22;
 #define ir_led 10
 
 
-/* ZAMAN DEĞİŞKEN TANIMLAMALARI */
+/* GENEL DEĞİŞKEN TANIMLAMALARI */
 int kontrol_dakika = 1;
 int kontrol_suresi = 0;
 bool kontrol_durum, ilk_sefer, enerji_durumu = false;
@@ -32,6 +31,7 @@ unsigned long son_kontrol_zaman = 0;
 
 unsigned long lastTime1, son_acma_zaman = 0;
 int gecensure_sn, gecensure_dk, gecensure_saat, gecensure_gun, gecensure_hafta = 0;
+
 
 /* ZAMAN DEĞİŞKEN TANIMLAMALARI */
 uRTCLib rtc;
@@ -41,7 +41,6 @@ uint8_t position;
 
 
 /* FONKSİYONLAR */
-
 void ZamanGuncelleYazdir()
 {
   rtc.refresh();
@@ -165,6 +164,9 @@ void seriport_rapor(int seriport_sure) // sure = ms
 
     ZamanGuncelleYazdir();
 
+    Serial.print("~ Mesai : ");
+    Serial.println(zamanKontrolu);
+
     Serial.print("~ Kontrol Sıklığı : ");
     Serial.print(kontrol_dakika);
     Serial.println(" dk");
@@ -236,14 +238,14 @@ void loop()
 
   if (zamanKontrolu) // Ayarlanan zaman içindeyse kapatmak için kontrol et ve hareket et.
   {
-    if (digitalRead(sarj) == HIGH)
+    if (digitalRead(sarj) == HIGH)// Cihaz açıksa yani şarj ediliyorsa bir şey yapma. 
     {
       enerji_durumu = true;
       digitalWrite(role, LOW);
       digitalWrite(ir_led, LOW);
       son_kontrol_zaman = millis();
     }
-    else
+    else // Ayarlanan zaman içerisinde cihaz kapanmışsa tekrar açmak için gerekli işlemleri yap. 
     {
       enerji_durumu = false;
 
