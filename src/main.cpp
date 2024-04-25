@@ -10,9 +10,8 @@
 int role_tetik_suresi = 500;
 int acilissaat = 9;
 int acilisdakika = 30;
-int kapanissat = 22;
+int kapanissaat = 22;
 // + SAAT ÇEKİRDEK YAZILIMI
-
 
 /* PİN TANIMLAMALARI */
 #define led 13
@@ -21,7 +20,6 @@ int kapanissat = 22;
 #define role 9
 #define batt_in 14 // A0
 #define ir_led 10
-
 
 /* GENEL DEĞİŞKEN TANIMLAMALARI */
 int kontrol_dakika = 1;
@@ -32,13 +30,12 @@ unsigned long son_kontrol_zaman = 0;
 unsigned long lastTime1, son_acma_zaman = 0;
 int gecensure_sn, gecensure_dk, gecensure_saat, gecensure_gun, gecensure_hafta = 0;
 
+bool zamanKontrolu;
 
 /* ZAMAN DEĞİŞKEN TANIMLAMALARI */
 uRTCLib rtc;
 byte rtcModel = URTCLIB_MODEL_DS1307;
 uint8_t position;
-
-
 
 /* FONKSİYONLAR */
 void ZamanGuncelleYazdir()
@@ -46,18 +43,17 @@ void ZamanGuncelleYazdir()
   rtc.refresh();
 
   Serial.print("Saat: ");
-  Serial.print(' ');
   Serial.print(rtc.hour());
-  Serial.print('.');
+  Serial.print(":");
   Serial.print(rtc.minute());
-  Serial.print('.');
+  Serial.print(":");
   Serial.print(rtc.second());
 
   Serial.print(" *** Tarih: ");
   Serial.print(rtc.day());
-  Serial.print('/');
+  Serial.print("/");
   Serial.print(rtc.month());
-  Serial.print('/');
+  Serial.print("/");
   Serial.print(rtc.year());
   Serial.print(" *** ");
   Serial.print(rtc.dayOfWeek());
@@ -152,20 +148,42 @@ void RTCBaslatma()
   position = 0;
 }
 
-// Saat 9:30 ile 22:00 arasında ise kontrol true olacak, değilse false olacak
-bool zamanKontrolu = (rtc.hour() >= acilissaat && rtc.minute() >= acilisdakika && rtc.hour() < kapanissaat);
-
 void seriport_rapor(int seriport_sure) // sure = ms
 {
   if (millis() - lastTime1 > seriport_sure)
   {
     Serial.println();
     Serial.print("***************** ");
-
     ZamanGuncelleYazdir();
 
-    Serial.print("~ Mesai : ");
-    Serial.println(zamanKontrolu);
+    Serial.print("~ Mesai           : ");
+    // Saat 9:30 ile 22:00 arasında ise kontrol true olacak, değilse false olacak
+    if (rtc.hour() >= acilissaat and rtc.hour() < kapanissaat)
+    {
+      if (rtc.hour() < acilissaat + 1)
+      {
+        if (rtc.minute() >= acilisdakika)
+        {
+          zamanKontrolu = true;
+          Serial.println("Mesai İçi");
+        }
+        else
+        {
+          zamanKontrolu = false;
+          Serial.println("Mesai Dışı (Enerji durumu ters yazacaktır)");
+        }
+      }
+      else
+      {
+        zamanKontrolu = true;
+        Serial.println("Mesai İçi");
+      }
+    }
+    else
+    {
+      zamanKontrolu = false;
+      Serial.println("Mesai Dışı");
+    }
 
     Serial.print("~ Kontrol Sıklığı : ");
     Serial.print(kontrol_dakika);
@@ -234,18 +252,16 @@ void loop()
 {
   seriport_rapor(1000);
 
-  //    SARJ TAKILI MI DEGİL Mİ KONTROL EDİYORUZ.
-
   if (zamanKontrolu) // Ayarlanan zaman içindeyse kapatmak için kontrol et ve hareket et.
   {
-    if (digitalRead(sarj) == HIGH)// Cihaz açıksa yani şarj ediliyorsa bir şey yapma. 
+    if (digitalRead(sarj) == HIGH) // Cihaz açıksa yani şarj ediliyorsa sonraki kontrole kadar bir şey yapma.
     {
       enerji_durumu = true;
       digitalWrite(role, LOW);
       digitalWrite(ir_led, LOW);
       son_kontrol_zaman = millis();
     }
-    else // Ayarlanan zaman içerisinde cihaz kapanmışsa tekrar açmak için gerekli işlemleri yap. 
+    else // Ayarlanan zaman içerisinde cihaz kapanmışsa tekrar açmak için gerekli işlemleri yap.
     {
       enerji_durumu = false;
 
@@ -275,9 +291,44 @@ void loop()
       }
     }
   }
-
-  else // Ayarlanan zaman dışındaysa kapatmak için kontrol et ve hareket et.
+  else // Ayarlanan zaman dışındaysa kapatmak için kontrol et ve hareket et. YUKARDAKİ DONGUNUN TAM TERSİ VE YER DEGİŞTİRİLMİŞ HALİ.
   {
+    if (digitalRead(sarj) == HIGH) // Mesai saati dışında cihaz açıksa yani şarj ediliyorsa tekrar kapatmak için gerekli işlemleri yap.
+    {
+      enerji_durumu = false;
+
+      if ((millis() - son_kontrol_zaman) >= (kontrol_dakika * 60000) and kontrol_durum == false)
+      {
+        kontrol_durum = true;
+        son_kontrol_zaman = millis();
+      }
+
+      if (kontrol_durum == true)
+      {
+        TV_AC_IR();
+        digitalWrite(role, HIGH);
+
+        if (ilk_sefer == false)
+        {
+          son_acma_zaman = millis();
+          ilk_sefer = true;
+        }
+
+        if (millis() - son_acma_zaman >= role_tetik_suresi)
+        {
+          digitalWrite(role, LOW);
+          kontrol_durum = false;
+          ilk_sefer = false;
+        }
+      }
+    }
+    else // Mesai saati dışında cihaz kapanmışsa sonraki kontrole kadar hiç bir şey yapma.
+    {
+      enerji_durumu = true;
+      digitalWrite(role, LOW);
+      digitalWrite(ir_led, LOW);
+      son_kontrol_zaman = millis();
+    }
   }
 
   if (digitalRead(buton) == LOW)
