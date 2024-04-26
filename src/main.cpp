@@ -31,6 +31,7 @@ unsigned long lastTime1, son_acma_zaman = 0;
 int gecensure_sn, gecensure_dk, gecensure_saat, gecensure_gun, gecensure_hafta = 0;
 
 bool zamanKontrolu;
+String timeString = "Yok";
 
 /* ZAMAN DEĞİŞKEN TANIMLAMALARI */
 uRTCLib rtc;
@@ -71,12 +72,13 @@ void RTCBaslatma()
   //
   //
   // Yalnızca bir kez kullanın, ardından devre dışı bırakın
-  // rtc.set(15, 23, 20, 5, 25, 4, 24);
-  // rtc.set(second, minute, hour, dayOfWeek, dayOfMonth, month, year)
+  //  rtc.set(14, 49, 12, 6, 26, 4, 24);
+  // rtc.set(secnd, minute, hour, dayOfWeek, dayOfMonth, month, year)
   //
   //
 
   rtc.set_12hour_mode(false);
+
   if (rtc.enableBattery())
   {
     Serial.println("Pil doğru şekilde etkinleştirildi.");
@@ -182,8 +184,11 @@ void seriport_rapor(int seriport_sure) // sure = ms
     else
     {
       zamanKontrolu = false;
-      Serial.println("Mesai Dışı");
+      Serial.println("Mesai Dışı (Enerji durumu ters yazacaktır)");
     }
+
+    Serial.print("~ Son Tetikleme   : ");
+    Serial.println(timeString);
 
     Serial.print("~ Kontrol Sıklığı : ");
     Serial.print(kontrol_dakika);
@@ -278,6 +283,12 @@ void loop()
 
         if (ilk_sefer == false)
         {
+          Serial.println();
+          Serial.println("---------- ROLE TETİKLENDİ ----------");
+          Serial.print("---------- ");
+          timeString = String(rtc.hour()) + ":" + String(rtc.minute()) + ":" + String(rtc.second());
+          Serial.print(timeString);
+          Serial.println(" ----------");
           son_acma_zaman = millis();
           ilk_sefer = true;
         }
