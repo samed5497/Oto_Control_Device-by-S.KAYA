@@ -14,7 +14,7 @@
 int role_tetik_suresi = 500;
 int acilissaat = 10;
 int acilisdakika = 30;
-int kapanissaat = 23;
+int kapanissaat = 22;
 // + SAAT ÇEKİRDEK YAZILIMI
 
 /* PİN TANIMLAMALARI */
