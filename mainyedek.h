@@ -1,6 +1,10 @@
 #include <Arduino.h>
-#include "uRTCLib.h"
 
+// #define OtoControlDeviceFirmware
+#define IROkuyucuFirmware
+
+#ifdef OtoControlDeviceFirmware
+#include "uRTCLib.h"
 #define UYGULAMA "Oto_Control_Device"
 #define SURUM "v1.0"
 #define DEVELOPER "github.com/samed5497"
@@ -8,7 +12,7 @@
 /* KALİBRE EDİLEBİLİR DEĞİŞKEN TANIMLAMALARI */
 
 int role_tetik_suresi = 500;
-int acilissaat = 9;
+int acilissaat = 10;
 int acilisdakika = 30;
 int kapanissaat = 22;
 // + SAAT ÇEKİRDEK YAZILIMI
@@ -21,6 +25,9 @@ int kapanissaat = 22;
 #define batt_in 14 // A0
 #define ir_led 10
 
+#define RTC_ADDRESS 0x68    // DS1307 RTC adresi
+#define EEPROM_ADDRESS 0x50 // 24c32 adresi
+
 /* GENEL DEĞİŞKEN TANIMLAMALARI */
 int kontrol_dakika = 1;
 int kontrol_suresi = 0;
@@ -31,13 +38,76 @@ unsigned long lastTime1, son_acma_zaman = 0;
 int gecensure_sn, gecensure_dk, gecensure_saat, gecensure_gun, gecensure_hafta = 0;
 
 bool zamanKontrolu;
+String timeString = "Yok";
 
 /* ZAMAN DEĞİŞKEN TANIMLAMALARI */
 uRTCLib rtc;
 byte rtcModel = URTCLIB_MODEL_DS1307;
 uint8_t position;
 
+int readDatahour, readDataminute, readDatasecond, readDataday, readDatamonth, readDatayear, readDatadayOfWeek;
 /* FONKSİYONLAR */
+// EEPROM'a veri yazma fonksiyonu
+void writeEEPROM(int address, int data)
+{
+  Wire.beginTransmission(EEPROM_ADDRESS); // 24C32'nin adresi
+  Wire.write((byte)(address >> 8));       // Yüksek adres byte
+  Wire.write((byte)(address & 0xFF));     // Düşük adres byte
+  Wire.write((byte)data);                 // Veri
+  Wire.endTransmission();
+}
+
+// EEPROM'dan veri okuma fonksiyonu
+int readEEPROM(int address)
+{
+  int data = 0;                           // Okunan veri
+  Wire.beginTransmission(EEPROM_ADDRESS); // 24C32'nin adresi
+  Wire.write((byte)(address >> 8));       // Yüksek adres byte
+  Wire.write((byte)(address & 0xFF));     // Düşük adres byte
+  Wire.endTransmission(false);
+
+  Wire.requestFrom(EEPROM_ADDRESS, 1); // 1 byte oku
+  if (Wire.available())
+  {
+    data = Wire.read(); // Okunan veriyi al
+  }
+  return data;
+}
+
+// RTC değerlerini EEPROM'a yazma işlemi
+void writeRTCtoEEPROM()
+{
+  writeEEPROM(10, rtc.hour());
+  delay(5); // Yazma işlemi için biraz daha uzun bir gecikme ekleyin
+  writeEEPROM(20, rtc.minute());
+  delay(5);
+  writeEEPROM(30, rtc.second());
+  delay(5);
+  writeEEPROM(40, rtc.day());
+  delay(5);
+  writeEEPROM(50, rtc.month());
+  delay(5);
+  writeEEPROM(60, rtc.year());
+  delay(5);
+  writeEEPROM(70, rtc.dayOfWeek());
+  delay(5);
+}
+
+void readEEPROMData()
+{
+  // Veri okuma örneği
+  readDatahour = readEEPROM(10);
+  readDataminute = readEEPROM(20);
+  readDatasecond = readEEPROM(30);
+  readDataday = readEEPROM(40);
+  readDatamonth = readEEPROM(50);
+  readDatayear = readEEPROM(60);
+  readDatadayOfWeek = readEEPROM(70);
+
+  Serial.print("~ Eeprom Zamanı   : ");
+  Serial.println(String(readDatahour) + ":" + String(readDataminute) + ":" + String(readDatasecond) + "  -  " + String(readDataday) + "/" + String(readDatamonth) + "/" + String(readDatayear) + " - " + String(readDatadayOfWeek));
+}
+
 void ZamanGuncelleYazdir()
 {
   rtc.refresh();
@@ -58,25 +128,38 @@ void ZamanGuncelleYazdir()
   Serial.print(" *** ");
   Serial.print(rtc.dayOfWeek());
   Serial.println(".gün");
+
+  if (rtcModel == URTCLIB_MODEL_DS1307 || rtcModel == URTCLIB_MODEL_DS3232)
+  {
+    // Serial.print("~ SRAM position   : ");
+    // Serial.print(position);
+    // Serial.print(" / value: ");
+    // Serial.println(rtc.ramRead(position), HEX);
+    position++;
+  }
+
+  writeRTCtoEEPROM();
+
   Serial.flush();
 }
 
 void RTCBaslatma()
 {
   URTCLIB_WIRE.begin();
-  rtc.set_rtc_address(0x68);
+  rtc.set_rtc_address(RTC_ADDRESS);
   rtc.set_model(rtcModel);
   rtc.refresh();
 
   //
   //
   // Yalnızca bir kez kullanın, ardından devre dışı bırakın
-   rtc.set(15, 37, 11, 5, 26, 4, 24);
-  // rtc.set(second, minute, hour, dayOfWeek, dayOfMonth, month, year)
+  // rtc.set(14, 6, 13, 6, 26, 4, 24);
+  // rtc.set(secnd, minute, hour, dayOfWeek, dayOfMonth, month, year)
   //
   //
 
   rtc.set_12hour_mode(false);
+
   if (rtc.enableBattery())
   {
     Serial.println("Pil doğru şekilde etkinleştirildi.");
@@ -182,8 +265,11 @@ void seriport_rapor(int seriport_sure) // sure = ms
     else
     {
       zamanKontrolu = false;
-          Serial.println("Mesai Dışı (Enerji durumu ters yazacaktır)");
+      Serial.println("Mesai Dışı (Enerji durumu ters yazacaktır)");
     }
+
+    Serial.print("~ Son Tetikleme   : ");
+    Serial.println(timeString);
 
     Serial.print("~ Kontrol Sıklığı : ");
     Serial.print(kontrol_dakika);
@@ -237,6 +323,7 @@ void setup()
   pinMode(sarj, INPUT);
   pinMode(batt_in, INPUT);
 
+  Wire.begin();
   RTCBaslatma();
 
   digitalWrite(ir_led, HIGH);
@@ -278,6 +365,15 @@ void loop()
 
         if (ilk_sefer == false)
         {
+          Serial.println();
+          Serial.println("---------- ROLE TETİKLENDİ ----------");
+          Serial.print("---------- ");
+          timeString = String(rtc.hour()) + ":" + String(rtc.minute()) + ":" + String(rtc.second());
+          Serial.print(timeString);
+          Serial.println(" ----------");
+
+          readEEPROMData();
+
           son_acma_zaman = millis();
           ilk_sefer = true;
         }
@@ -435,3 +531,97 @@ void loop()
     Serial.println(" dk");
   }
 }
+
+#endif
+
+// BIN = 11101010000101010111111100000000
+// HEX = 0xEA157F00
+// DEC = 3927277312
+/*
+
+Protocol=NEC Address=0x7F00 Command=0x15 Raw-Data=0xEA157F00 32 bits LSB first
+Send with: IrSender.sendNEC(0x7F00, 0x15, <numberOfRepeats>);
+
+*/
+
+#ifdef IROkuyucuFirmware
+
+#define DECODE_NEC          // Includes Apple and Onkyo. To enable all protocols , just comment/disable this line.
+
+#define IR_RECEIVE_PIN 5 // IR alıcının sinyal pini
+#define BUTTON_PIN 7     // Buton pin numarası
+#define BUTTON_PIN2 6    // Buton pin numarası
+#define IR_SEND_PIN 10   // IR LED'in pin numarası
+
+#include <IRremote.hpp> // include the library
+
+#define UYGULAMA "IR_Okuyucu_Device"
+#define SURUM "v1.0"
+#define DEVELOPER "github.com/samed5497"
+
+void setup()
+{
+  pinMode(BUTTON_PIN2, OUTPUT);
+  pinMode(BUTTON_PIN, INPUT);
+  digitalWrite(BUTTON_PIN2, HIGH);
+
+  Serial.begin(115200);
+  Serial.println("-----------------------------------------");
+  Serial.println();
+  Serial.println();
+
+  Serial.print(UYGULAMA);
+  Serial.print(" - ");
+  Serial.print(SURUM);
+  Serial.println();
+  Serial.print("Developer: ");
+  Serial.print(DEVELOPER);
+  Serial.println();
+
+  Serial.flush();
+  IrReceiver.begin(IR_RECEIVE_PIN, ENABLE_LED_FEEDBACK);
+
+  IrSender.begin();     // Start with IR_SEND_PIN -which is defined in PinDefinitionsAndMore.h- as send pin and enable feedback LED at default feedback LED pin
+  disableLEDFeedback(); // Disable feedback LED at default feedback LED pin
+}
+
+void loop()
+{
+
+  if (IrReceiver.decode())
+  {
+    if (IrReceiver.decodedIRData.protocol == UNKNOWN)
+    {
+      Serial.println(F("Received noise or an unknown (or not yet enabled) protocol"));
+      // We have an unknown protocol here, print extended info
+      IrReceiver.printIRResultRawFormatted(&Serial, true);
+      IrReceiver.resume(); // Do it here, to preserve raw data for printing with printIRResultRawFormatted()
+    }
+    else
+    {
+      IrReceiver.resume(); // Early enable receiving of the next IR frame
+      IrReceiver.printIRResultShort(&Serial);
+      IrReceiver.printIRSendUsage(&Serial);
+    }
+    Serial.println();
+
+    // SINYALE GORE KOMUT İŞLEME
+    if (IrReceiver.decodedIRData.command == 0x10)
+    {
+      // do something
+    }
+    else if (IrReceiver.decodedIRData.command == 0x11)
+    {
+      // do something else
+    }
+  }
+  // Butona basıldığında
+  if (digitalRead(BUTTON_PIN) == HIGH)
+  {
+    IrSender.sendNEC(0x7F00, 0x15, 1);
+    Serial.println("GONDERILDI");
+    delay(1000); // Sinyalin tamamlanması için biraz bekleyin
+  }
+}
+
+#endif
