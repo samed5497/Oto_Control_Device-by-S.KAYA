@@ -1,8 +1,15 @@
 #include <Arduino.h>
 
-//#define OtoControlDeviceFirmware
+// #define OtoControlDeviceFirmware
 // #define IROkuyucuFirmware
 
+/*
+
+Protocol=NEC Address=0x7F00 Command=0x15 Raw-Data=0xEA157F00 32 bits LSB first
+Send with: IrSender.sendNEC(0x7F00, 0x15, <numberOfRepeats>);
+
+
+*/
 #ifdef OtoControlDeviceFirmware
 #include "uRTCLib.h"
 #define UYGULAMA "Oto_Control_Device"
@@ -18,7 +25,7 @@ int kapanissaat = 22;
 // + SAAT ÇEKİRDEK YAZILIMI
 
 /* PİN TANIMLAMALARI */
-#define led 13
+#define bildirim_ledi 13
 #define buton 12
 #define sarj 7
 #define role 9
@@ -154,7 +161,7 @@ void RTCBaslatma()
   //
   //
   // Yalnızca bir kez kullanın, ardından devre dışı bırakın
-  // rtc.set(14, 6, 13, 6, 26, 4, 24);
+  // rtc.set(14, 55, 15, 3, 30, 4, 24);
   // rtc.set(secnd, minute, hour, dayOfWeek, dayOfMonth, month, year)
   //
   //
@@ -296,7 +303,7 @@ void seriport_rapor(int seriport_sure) // sure = ms
 
 void TV_AC_IR()
 {
-  IrSender.sendNEC(0x7F00, 0x15, 1);
+  IrSender.sendNEC(0x7F00, 0x15, 0);
 }
 
 void setup()
@@ -319,7 +326,7 @@ void setup()
   Serial.flush();
 
   pinMode(role, OUTPUT);
-  pinMode(led, OUTPUT);
+  pinMode(bildirim_ledi, OUTPUT);
   pinMode(buton, INPUT_PULLUP);
   pinMode(sarj, INPUT);
   pinMode(batt_in, INPUT);
@@ -327,9 +334,8 @@ void setup()
   Wire.begin();
   RTCBaslatma();
 
-
   digitalWrite(role, LOW);
-  digitalWrite(led, LOW);
+  digitalWrite(bildirim_ledi, LOW);
 
   IrSender.begin();     // Start with IR_SEND_PIN -which is defined in PinDefinitionsAndMore.h- as send pin and enable feedback LED at default feedback LED pin
   disableLEDFeedback(); // Disable feedback LED at default feedback LED pin
@@ -351,7 +357,7 @@ void loop()
     {
       enerji_durumu = false;
 
-      if ((millis() - son_kontrol_zaman) >= (kontrol_dakika * 6000) and kontrol_durum == false)
+      if ((millis() - son_kontrol_zaman) >= (kontrol_dakika * 60000) and kontrol_durum == false)
       {
         kontrol_durum = true;
         son_kontrol_zaman = millis();
@@ -392,7 +398,7 @@ void loop()
     {
       enerji_durumu = false;
 
-      if ((millis() - son_kontrol_zaman) >= (kontrol_dakika * 6000) and kontrol_durum == false)
+      if ((millis() - son_kontrol_zaman) >= (kontrol_dakika * 60000) and kontrol_durum == false)
       {
         kontrol_durum = true;
         son_kontrol_zaman = millis();
@@ -437,9 +443,9 @@ void loop()
       for (int i = 0; i < kontrol_dakika; i += 5)
       {
         {
-          digitalWrite(led, HIGH);
+          digitalWrite(bildirim_ledi, HIGH);
           delay(250);
-          digitalWrite(led, LOW);
+          digitalWrite(bildirim_ledi, LOW);
           delay(250);
         }
       }
@@ -451,9 +457,9 @@ void loop()
       for (int i = 0; i < kontrol_dakika; i += 5)
       {
         {
-          digitalWrite(led, HIGH);
+          digitalWrite(bildirim_ledi, HIGH);
           delay(250);
-          digitalWrite(led, LOW);
+          digitalWrite(bildirim_ledi, LOW);
           delay(250);
         }
       }
@@ -465,9 +471,9 @@ void loop()
       for (int i = 0; i < kontrol_dakika; i += 5)
       {
         {
-          digitalWrite(led, HIGH);
+          digitalWrite(bildirim_ledi, HIGH);
           delay(250);
-          digitalWrite(led, LOW);
+          digitalWrite(bildirim_ledi, LOW);
           delay(250);
         }
       }
@@ -479,9 +485,9 @@ void loop()
       for (int i = 0; i < kontrol_dakika; i += 5)
       {
         {
-          digitalWrite(led, HIGH);
+          digitalWrite(bildirim_ledi, HIGH);
           delay(250);
-          digitalWrite(led, LOW);
+          digitalWrite(bildirim_ledi, LOW);
           delay(250);
         }
       }
@@ -492,9 +498,9 @@ void loop()
       for (int i = 0; i < kontrol_dakika; i += 5)
       {
         {
-          digitalWrite(led, HIGH);
+          digitalWrite(bildirim_ledi, HIGH);
           delay(250);
-          digitalWrite(led, LOW);
+          digitalWrite(bildirim_ledi, LOW);
           delay(250);
         }
       }
@@ -506,9 +512,9 @@ void loop()
       for (int i = 0; i < kontrol_dakika; i += 5)
       {
         {
-          digitalWrite(led, HIGH);
+          digitalWrite(bildirim_ledi, HIGH);
           delay(250);
-          digitalWrite(led, LOW);
+          digitalWrite(bildirim_ledi, LOW);
           delay(250);
         }
       }
@@ -518,9 +524,9 @@ void loop()
     {
       kontrol_dakika = 1;
       {
-        digitalWrite(led, HIGH);
+        digitalWrite(bildirim_ledi, HIGH);
         delay(50);
-        digitalWrite(led, LOW);
+        digitalWrite(bildirim_ledi, LOW);
         delay(50);
       }
     }
@@ -613,13 +619,15 @@ void loop()
       // do something else
     }
   }
+  
   // Butona basıldığında
   if (digitalRead(BUTTON_PIN) == HIGH)
   {
     IrSender.sendNEC(0x7F00, 0x15, 1);
     Serial.println("GONDERILDI");
-    delay(1000); // Sinyalin tamamlanması için biraz bekleyin
+    delay(500); // Sinyalin tamamlanması için biraz bekleyin
   }
+  
 }
 
 #endif
